@@ -1,0 +1,661 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full scroll-smooth">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>ABRAXAS // Nexus</title>
+  <link rel="icon" type="image/svg+xml" href="/abraxas.svg" />
+
+  <!-- Tailwind CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    /* Tailwind config: neon + gradients */
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            cyber: {
+              50:'#eafffb',100:'#c0fff3',200:'#87ffe8',300:'#4dffd9',
+              400:'#16f2c9',500:'#00d7b2',600:'#00aa8e',700:'#007f6e',800:'#005e54',900:'#013a35'
+            }
+          },
+          boxShadow: {
+            neon: '0 0 10px rgba(22,242,201,.6), 0 0 30px rgba(22,242,201,.3)',
+            panel: '0 10px 25px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.02)'
+          },
+          backdropBlur: {
+            xs: '2px'
+          },
+          keyframes: {
+            floaty: { '0%,100%':{ transform:'translateY(0px)'}, '50%':{ transform:'translateY(-8px)'}},
+            glow: { '0%,100%':{ filter:'drop-shadow(0 0 0px #16f2c9)'}, '50%':{ filter:'drop-shadow(0 0 12px #16f2c9)'} },
+            dash: { '0%':{ strokeDashoffset:100}, '100%':{ strokeDashoffset:0}},
+            scan: { '0%':{ transform:'translateY(-100%)'}, '100%':{ transform:'translateY(100%)'} },
+            shimmer: { '0%':{ backgroundPosition:'-200% 0'}, '100%':{ backgroundPosition:'200% 0'}}
+          },
+          animation: {
+            floaty: 'floaty 6s ease-in-out infinite',
+            glow: 'glow 3s ease-in-out infinite',
+            scan: 'scan 2.4s linear infinite',
+            shimmer: 'shimmer 2s linear infinite'
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- Phosphor Icons -->
+  <script src="https://unpkg.com/@phosphor-icons/web"></script>
+  <!-- GSAP -->
+  <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/Draggable.min.js"></script>
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+
+  <style>
+    /* cyber grid background */
+    .grid-bg {
+      background-image:
+        radial-gradient(ellipse at top, rgba(22,242,201,.08), transparent 60%),
+        radial-gradient(ellipse at bottom, rgba(59,130,246,.12), transparent 55%),
+        linear-gradient(rgba(255,255,255,.04), rgba(255,255,255,0)),
+        linear-gradient(90deg, rgba(255,255,255,.05) 1px, transparent 1px),
+        linear-gradient(0deg, rgba(255,255,255,.05) 1px, transparent 1px);
+      background-size: 100% 100%, 100% 100%, 100% 100%, 48px 48px, 48px 48px;
+      background-position: center center, center center, center center, center center, center center;
+    }
+    /* neon border */
+    .neon-border {
+      position: relative;
+      border: 1px solid rgba(22,242,201,.25);
+    }
+    .neon-border:before {
+      content:"";
+      pointer-events:none;
+      position:absolute; inset: -1px;
+      border:1px solid rgba(22,242,201,.25);
+      filter: blur(8px);
+    }
+    /* glass panel */
+    .glass {
+      background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.02));
+      backdrop-filter: blur(8px);
+    }
+    /* scrollbars */
+    ::-webkit-scrollbar{ width:10px; height:10px }
+    ::-webkit-scrollbar-thumb{ background: linear-gradient(#16f2c9, #3b82f6); border-radius:10px }
+    ::-webkit-scrollbar-track{ background: rgba(255,255,255,.04) }
+
+    /* command palette highlight */
+    .cmdk .active { background: rgba(22,242,201,.18) }
+
+    /* glitch title */
+    .glitch {
+      position: relative;
+      text-shadow: 0 0 8px rgba(22,242,201,.5);
+    }
+    .glitch:before, .glitch:after {
+      content: attr(data-text);
+      position: absolute; left:0; top:0;
+      width:100%; overflow:hidden;
+      clip-path: inset(0 0 0 0);
+    }
+    .glitch:before { transform: translate(2px, -1px); color:#16f2c9; mix-blend-mode: screen; }
+    .glitch:after  { transform: translate(-2px, 1px); color:#60a5fa; mix-blend-mode: screen; }
+  </style>
+</head>
+
+<body class="h-full bg-gray-950 text-white grid-bg selection:bg-cyber-400/30">
+  <!-- PARTICLE LAYER -->
+  <canvas id="stars" class="fixed inset-0 -z-10"></canvas>
+
+  <!-- TOP BAR -->
+  <header class="sticky top-0 z-40 glass neon-border shadow-panel">
+    <div class="max-w-7xl mx-auto px-4 py-3 flex items-center gap-3">
+      <i class="ph ph-seal-warning text-cyber-400 text-2xl animate-glow"></i>
+      <h1 class="glitch text-xl md:text-2xl font-extrabold tracking-wide" data-text="ABRAXAS // NEXUS">ABRAXAS // NEXUS</h1>
+
+      <div class="ml-auto flex items-center gap-3">
+        <!-- search -->
+        <div class="relative group hidden md:block">
+          <i class="ph ph-magnifying-glass absolute left-3 top-2.5 text-gray-400"></i>
+          <input id="globalSearch" placeholder="Search ops, nodes, users… (Ctrl+K)" class="w-72 pl-10 pr-3 py-2 rounded-xl bg-gray-900/70 border border-white/10 focus:outline-none focus:ring-2 focus:ring-cyber-500 transition" />
+        </div>
+        <!-- theme -->
+        <button id="themeBtn" class="px-3 py-2 rounded-xl bg-gray-900/70 border border-white/10 hover:border-cyber-500 transition" title="Toggle theme (T)">
+          <i class="ph ph-moon-stars text-lg"></i>
+        </button>
+        <!-- notifications -->
+        <button id="bellBtn" class="relative px-3 py-2 rounded-xl bg-gray-900/70 border border-white/10 hover:border-cyber-500 transition">
+          <i class="ph ph-bell-ringing text-lg"></i>
+          <span id="bellDot" class="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-rose-500 animate-ping"></span>
+        </button>
+        <!-- user -->
+        <div class="flex items-center gap-3 pl-3">
+          <div class="text-right leading-4">
+            <div class="text-sm font-semibold">abraxas</div>
+            <div class="text-[11px] text-gray-400">root@Nexus</div>
+          </div>
+          <img class="w-10 h-10 rounded-full ring-2 ring-cyber-400/60" src="https://i.pravatar.cc/100?u=abraxas" alt="avatar"/>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <div class="max-w-7xl mx-auto px-4 py-6 grid md:grid-cols-[260px,1fr] gap-6">
+    <!-- SIDEBAR -->
+    <aside class="glass neon-border rounded-2xl p-4 md:sticky md:top-24 h-fit shadow-panel">
+      <div class="flex items-center gap-3 mb-4">
+        <i class="ph ph-terminal-window text-2xl text-cyber-400"></i>
+        <div>
+          <div class="font-bold">Operations</div>
+          <div class="text-xs text-gray-400">v2.7.9 build-Ω</div>
+        </div>
+      </div>
+
+      <nav class="space-y-2">
+        <a href="#" data-jump="overview" class="navlink flex items-center gap-3 p-2 rounded-xl hover:bg-white/5 border border-white/10">
+          <i class="ph ph-house"></i> Overview
+        </a>
+        <a href="#" data-jump="analytics" class="navlink flex items-center gap-3 p-2 rounded-xl hover:bg-white/5 border border-white/10">
+          <i class="ph ph-chart-line-up"></i> Analytics
+        </a>
+        <a href="#" data-jump="terminal" class="navlink flex items-center gap-3 p-2 rounded-xl hover:bg-white/5 border border-white/10">
+          <i class="ph ph-terminal"></i> Terminal
+        </a>
+        <a href="#" data-jump="users" class="navlink flex items-center gap-3 p-2 rounded-xl hover:bg-white/5 border border-white/10">
+          <i class="ph ph-users-three"></i> Users
+        </a>
+        <a href="#" data-jump="settings" class="navlink flex items-center gap-3 p-2 rounded-xl hover:bg-white/5 border border-white/10">
+          <i class="ph ph-gear-six"></i> Settings
+        </a>
+        <div class="pt-2 mt-2 border-t border-white/10 text-xs text-gray-400">
+          Shortcuts: <span class="px-1 py-0.5 rounded bg-white/5">T</span> theme · <span class="px-1 py-0.5 rounded bg-white/5">Ctrl+K</span> commands
+        </div>
+      </nav>
+
+      <div class="mt-4 p-3 rounded-xl border border-rose-500/20 bg-rose-500/10">
+        <div class="flex items-center gap-2 text-rose-300">
+          <i class="ph ph-warning"></i>
+          <span class="text-sm font-semibold">Security Notice</span>
+        </div>
+        <p class="text-xs text-rose-200/80 mt-1">
+          3 suspicious logins blocked. Enforce 2FA in <a href="#" data-jump="settings" class="underline">Settings → Security</a>.
+        </p>
+      </div>
+
+      <div class="mt-4 grid grid-cols-2 gap-2">
+        <a href="/login" class="text-center rounded-xl py-2 bg-blue-600 hover:bg-blue-500 shadow-neon">Login</a>
+        <a href="/signup" class="text-center rounded-xl py-2 bg-emerald-600 hover:bg-emerald-500 shadow-neon">Signup</a>
+      </div>
+      <div class="text-[11px] text-gray-400 mt-3">© 2025 Abraxas Systems</div>
+    </aside>
+
+    <!-- MAIN -->
+    <main class="space-y-6">
+      <!-- OVERVIEW -->
+      <section id="overview" class="glass neon-border rounded-2xl p-4 md:p-6 shadow-panel">
+        <div class="flex items-center justify-between">
+          <h2 class="text-lg md:text-xl font-bold tracking-wide">Mission Control</h2>
+          <div class="flex items-center gap-2">
+            <button id="gridToggle" class="px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-sm hover:border-cyber-500" title="Toggle layout grid">Grid</button>
+            <button id="pulseBtn" class="px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-sm hover:border-cyber-500">Pulse</button>
+            <button id="shuffleBtn" class="px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-sm hover:border-cyber-500">Shuffle</button>
+          </div>
+        </div>
+
+        <!-- Stats -->
+        <div class="grid sm:grid-cols-2 xl:grid-cols-4 gap-4 mt-4">
+          <!-- card -->
+          <div class="widget relative p-4 rounded-xl border border-white/10 bg-gradient-to-br from-cyan-500/10 to-blue-500/10 overflow-hidden cursor-move">
+            <div class="absolute inset-x-0 top-0 h-0.5 bg-gradient-to-r from-cyan-400 via-cyber-400 to-blue-400 animate-[shimmer_2.2s_linear_infinite] bg-[length:200%_100%]"></div>
+            <div class="flex items-center justify-between">
+              <div class="text-gray-300 text-xs">Total Users</div>
+              <i class="ph ph-users-three text-cyber-400"></i>
+            </div>
+            <div class="mt-2 text-3xl font-extrabold">12,430</div>
+            <div class="text-xs text-emerald-400 mt-1 flex items-center gap-1">
+              <i class="ph ph-trend-up"></i> +4.2% this week
+            </div>
+          </div>
+
+          <div class="widget relative p-4 rounded-xl border border-white/10 bg-gradient-to-br from-emerald-500/10 to-cyan-500/10 cursor-move">
+            <div class="flex items-center justify-between">
+              <div class="text-gray-300 text-xs">Revenue</div>
+              <i class="ph ph-bank text-emerald-400"></i>
+            </div>
+            <div class="mt-2 text-3xl font-extrabold">$54,230</div>
+            <div class="text-xs text-emerald-400 mt-1 flex items-center gap-1">
+              <i class="ph ph-arrow-bend-up-right"></i> +$2,771
+            </div>
+          </div>
+
+          <div class="widget relative p-4 rounded-xl border border-white/10 bg-gradient-to-br from-fuchsia-500/10 to-purple-500/10 cursor-move">
+            <div class="flex items-center justify-between">
+              <div class="text-gray-300 text-xs">Active Sessions</div>
+              <i class="ph ph-activity text-fuchsia-400"></i>
+            </div>
+            <div class="mt-2 text-3xl font-extrabold">1,230</div>
+            <div class="text-xs text-rose-400 mt-1 flex items-center gap-1">
+              <i class="ph ph-lightning"></i> +87 new
+            </div>
+          </div>
+
+          <div class="widget relative p-4 rounded-xl border border-white/10 bg-gradient-to-br from-amber-500/10 to-rose-500/10 cursor-move">
+            <div class="flex items-center justify-between">
+              <div class="text-gray-300 text-xs">Latency (p95)</div>
+              <i class="ph ph-gauge text-amber-400"></i>
+            </div>
+            <div class="mt-2 text-3xl font-extrabold">142ms</div>
+            <div class="text-xs text-amber-300 mt-1">stable</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ANALYTICS -->
+      <section id="analytics" class="glass neon-border rounded-2xl p-4 md:p-6 shadow-panel">
+        <div class="flex items-center justify-between">
+          <h2 class="text-lg md:text-xl font-bold tracking-wide">Analytics</h2>
+          <div class="flex gap-2">
+            <select id="rangeSelect" class="bg-white/5 border border-white/10 rounded-lg px-2 py-1.5 text-sm">
+              <option value="7">7d</option>
+              <option value="30" selected>30d</option>
+              <option value="90">90d</option>
+            </select>
+            <button id="exportBtn" class="px-3 py-1.5 rounded-lg bg-cyber-500/20 border border-cyber-500/40 text-cyber-100 hover:bg-cyber-500/30 text-sm">Export</button>
+          </div>
+        </div>
+
+        <div class="grid lg:grid-cols-5 gap-4 mt-4">
+          <div class="lg:col-span-3 p-3 rounded-xl border border-white/10">
+            <canvas id="lineChart" height="130"></canvas>
+          </div>
+          <div class="lg:col-span-2 p-3 rounded-xl border border-white/10">
+            <canvas id="doughnutChart" height="130"></canvas>
+          </div>
+        </div>
+      </section>
+
+      <!-- TERMINAL -->
+      <section id="terminal" class="glass neon-border rounded-2xl p-0 overflow-hidden shadow-panel">
+        <div class="px-4 py-2 border-b border-white/10 flex items-center gap-2 bg-black/60">
+          <div class="flex gap-2">
+            <span class="w-3 h-3 rounded-full bg-rose-500"></span>
+            <span class="w-3 h-3 rounded-full bg-amber-400"></span>
+            <span class="w-3 h-3 rounded-full bg-emerald-500"></span>
+          </div>
+          <div class="ml-3 font-mono text-sm text-gray-300">/dev/nexus — interactive shell</div>
+        </div>
+        <div id="termOut" class="h-64 overflow-auto p-4 font-mono text-[13px] leading-relaxed bg-black/40">
+          <div class="text-cyber-300">abraxas@node:~$</div>
+        </div>
+        <form id="termForm" class="flex border-t border-white/10 bg-black/40">
+          <span class="px-3 py-2 font-mono text-cyber-300">abraxas@node:~$</span>
+          <input id="termIn" autocomplete="off" placeholder="type 'help' — ↑ for history" class="flex-1 bg-transparent outline-none px-2 py-2 font-mono"/>
+        </form>
+      </section>
+
+      <!-- USERS -->
+      <section id="users" class="glass neon-border rounded-2xl p-4 md:p-6 shadow-panel">
+        <div class="flex items-center justify-between">
+          <h2 class="text-lg md:text-xl font-bold tracking-wide">Users</h2>
+          <div class="flex gap-2">
+            <input id="userFilter" placeholder="Filter…" class="bg-white/5 border border-white/10 rounded-lg px-2 py-1.5 text-sm"/>
+            <button class="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500">Invite</button>
+          </div>
+        </div>
+        <div class="mt-4 overflow-x-auto">
+          <table class="min-w-full text-sm">
+            <thead class="text-left text-gray-300 border-b border-white/10">
+              <tr>
+                <th class="py-2">User</th>
+                <th class="py-2">Role</th>
+                <th class="py-2">Status</th>
+                <th class="py-2">Last Active</th>
+                <th class="py-2">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="userTable" class="divide-y divide-white/5">
+              <!-- rows injected by JS -->
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- SETTINGS -->
+      <section id="settings" class="glass neon-border rounded-2xl p-4 md:p-6 shadow-panel">
+        <h2 class="text-lg md:text-xl font-bold tracking-wide">Settings</h2>
+        <div class="grid md:grid-cols-2 gap-4 mt-4">
+          <div class="p-4 rounded-xl border border-white/10">
+            <div class="font-semibold mb-2">Theme</div>
+            <label class="flex items-center gap-3">
+              <input id="toggleMatrix" type="checkbox" class="w-4 h-4 accent-cyber-500">
+              <span>Enable Matrix rain (experimental)</span>
+            </label>
+          </div>
+          <div class="p-4 rounded-xl border border-white/10">
+            <div class="font-semibold mb-2">Security</div>
+            <label class="flex items-center gap-3">
+              <input id="toggle2FA" type="checkbox" class="w-4 h-4 accent-emerald-500" checked>
+              <span>Require 2FA for admin ops</span>
+            </label>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- COMMAND PALETTE -->
+  <div id="cmdk" class="cmdk fixed inset-0 z-50 hidden items-start justify-center pt-24 bg-black/60">
+    <div class="w-[680px] rounded-2xl glass neon-border overflow-hidden shadow-neon">
+      <div class="flex items-center gap-2 p-3 border-b border-white/10">
+        <i class="ph ph-magnifying-glass"></i>
+        <input id="cmdInput" placeholder="Jump to… type to search" class="flex-1 bg-transparent outline-none py-1.5"/>
+        <span class="text-xs text-gray-400">ESC</span>
+      </div>
+      <div id="cmdList" class="max-h-80 overflow-auto">
+        <!-- items injected -->
+      </div>
+    </div>
+  </div>
+
+  <!-- TOASTS -->
+  <div id="toasts" class="fixed bottom-4 right-4 space-y-2 z-50"></div>
+
+  <script>
+    /* ====== STARFIELD / MATRIX CANVAS ====== */
+    const canvas = document.getElementById('stars');
+    const ctx = canvas.getContext('2d');
+    let W, H, stars = [], matrix = false, glyphs = '01⟂ΔλΩΞψΣΓ'.split('');
+    const DPR = Math.max(1, window.devicePixelRatio || 1);
+    function resize(){
+      W = canvas.width = innerWidth * DPR;
+      H = canvas.height = innerHeight * DPR;
+      canvas.style.width = innerWidth+'px'; canvas.style.height = innerHeight+'px';
+      stars = Array.from({length: 140}, () => ({
+        x: Math.random()*W, y: Math.random()*H, z: Math.random()*0.8+0.2, v: Math.random()*0.4+0.1
+      }));
+    }
+    addEventListener('resize', resize); resize();
+    function draw(){
+      ctx.clearRect(0,0,W,H);
+      if(!matrix){
+        for(const s of stars){
+          s.y += s.v*2; if(s.y>H) s.y = 0;
+          const r = 1.2*s.z*DPR, alpha = .4 + .6*s.z;
+          ctx.beginPath(); ctx.fillStyle = `rgba(22,242,201,${alpha})`;
+          ctx.arc(s.x, s.y, r, 0, Math.PI*2); ctx.fill();
+        }
+      } else {
+        ctx.fillStyle = 'rgba(0,0,0,0.2)'; ctx.fillRect(0,0,W,H);
+        const cols = Math.floor(W/14), rows = Math.floor(H/16);
+        if(!draw.columns){
+          draw.columns = Array.from({length: cols}, () => 0);
+        }
+        ctx.fillStyle = '#16f2c9';
+        for(let i=0;i<cols;i++){
+          const ch = glyphs[Math.floor(Math.random()*glyphs.length)];
+          ctx.fillText(ch, i*14, draw.columns[i]*16);
+          draw.columns[i] = (draw.columns[i]*16 > H && Math.random() > .975) ? 0 : draw.columns[i]+1;
+        }
+      }
+      requestAnimationFrame(draw);
+    } draw();
+
+    /* ====== THEME + PERSIST ====== */
+    const themeBtn = document.getElementById('themeBtn');
+    const toggleMatrix = document.getElementById('toggleMatrix');
+    const STATE = JSON.parse(localStorage.getItem('nexus-state')||'{}');
+    function save(){ localStorage.setItem('nexus-state', JSON.stringify(STATE)); }
+    function setTheme(next){
+      document.documentElement.classList.toggle('invert', next==='light');
+      STATE.theme = next; save();
+    }
+    setTheme(STATE.theme || 'dark');
+    if(STATE.matrix){ toggleMatrix.checked = true; matrix = true; }
+    themeBtn.addEventListener('click', ()=> setTheme(STATE.theme==='dark' ? 'light' : 'dark'));
+    addEventListener('keydown', e=>{ if(e.key.toLowerCase()==='t' && !e.metaKey && !e.ctrlKey){ setTheme(STATE.theme==='dark' ? 'light' : 'dark') }});
+    toggleMatrix?.addEventListener('change', e=>{ matrix = e.target.checked; STATE.matrix = matrix; save(); });
+
+    /* ====== DRAGGABLE WIDGETS ====== */
+    const widgets = document.querySelectorAll('.widget');
+    widgets.forEach((w,idx)=>{
+      w.style.transform = 'translate(0px,0px)';
+      gsap.set(w, { y: 0, x: 0 });
+      Draggable.create(w, {
+        type: 'x,y', edgeResistance: 0.2, inertia: true,
+        onDragEnd(){ 
+          STATE['w'+idx] = {x:this.x, y:this.y}; save();
+        }
+      });
+      if(STATE['w'+idx]) gsap.set(w, STATE['w'+idx]);
+    });
+
+    /* ====== FUN BUTTONS ====== */
+    document.getElementById('pulseBtn').addEventListener('click', ()=>{
+      gsap.to('.widget', { scale: 1.05, yoyo:true, repeat:1, duration:.15, stagger: .06, ease:'power2' });
+      toast('System pulse sent', 'info');
+    });
+    document.getElementById('shuffleBtn').addEventListener('click', ()=>{
+      document.querySelectorAll('.widget').forEach(w=>{
+        gsap.to(w, { x:(Math.random()*20-10), y:(Math.random()*20-10), duration:.25, yoyo:true, repeat:1 });
+      });
+      toast('Widgets shuffled', 'success');
+    });
+    let gridOn=false;
+    const gridToggle = document.getElementById('gridToggle');
+    gridToggle.addEventListener('click', ()=>{
+      gridOn=!gridOn;
+      document.body.classList.toggle('outline', gridOn);
+      document.body.style.outlineColor = '#16f2c9';
+      toast(gridOn? 'Grid overlay enabled':'Grid overlay disabled', 'info');
+    });
+
+    /* ====== CHARTS ====== */
+    const lc = new Chart(document.getElementById('lineChart'), {
+      type: 'line',
+      data: {
+        labels: Array.from({length: 30}, (_,i)=> `D${i+1}`),
+        datasets: [{
+          label:'Requests', data: Array.from({length:30}, ()=> Math.floor(200+Math.random()*400)),
+          tension:.35, fill:true,
+          backgroundColor: 'rgba(22,242,201,.12)', borderColor:'#16f2c9', pointRadius:0
+        },{
+          label:'Errors', data: Array.from({length:30}, ()=> Math.floor(10+Math.random()*35)),
+          tension:.35, fill:true,
+          backgroundColor: 'rgba(244,63,94,.12)', borderColor:'#f43f5e', pointRadius:0
+        }]
+      },
+      options: {
+        responsive:true,
+        plugins: { legend:{labels:{color:'#cbd5e1'}} },
+        scales: {
+          x: { ticks:{ color:'#94a3b8' }, grid:{ color:'rgba(148,163,184,.1)'} },
+          y: { ticks:{ color:'#94a3b8' }, grid:{ color:'rgba(148,163,184,.08)'} }
+        }
+      }
+    });
+
+    const dc = new Chart(document.getElementById('doughnutChart'), {
+      type: 'doughnut',
+      data: {
+        labels: ['API','Jobs','DB','Cache'],
+        datasets: [{ data: [45, 22, 21, 12], backgroundColor: ['#16f2c9','#60a5fa','#a78bfa','#f59e0b'] }]
+      },
+      options:{ plugins:{ legend:{ labels:{ color:'#cbd5e1'} } } }
+    });
+
+    document.getElementById('rangeSelect').addEventListener('change', e=>{
+      const n = +e.target.value;
+      lc.data.labels = Array.from({length:n}, (_,i)=> `D${i+1}`);
+      lc.data.datasets.forEach(ds=> ds.data = Array.from({length:n}, ()=> Math.floor(Math.random()*500)));
+      lc.update(); toast(`Range set to ${n} days`, 'success');
+    });
+
+    document.getElementById('exportBtn').addEventListener('click', ()=>{
+      const url = document.getElementById('lineChart').toDataURL('image/png');
+      const a = document.createElement('a'); a.href=url; a.download='analytics.png'; a.click();
+      toast('Chart exported as PNG','success');
+    });
+
+    /* ====== TERMINAL ====== */
+    const termOut = document.getElementById('termOut');
+    const termIn  = document.getElementById('termIn');
+    const termForm= document.getElementById('termForm');
+    const HISTORY = []; let hi = -1;
+    const CMDS = {
+      help(){ return "commands: help, time, whoami, clear, stats, echo <msg>"; },
+      time(){ return new Date().toString(); },
+      whoami(){ return "user: abraxas · role: root · shell: zsh"; },
+      clear(){ termOut.innerHTML=''; return ''; },
+      stats(){ return "cpu: 12% · mem: 43% · net: 120Mbps ↑ 98Mbps ↓"; },
+      echo(...args){ return args.join(' '); }
+    };
+    termForm.addEventListener('submit', e=>{
+      e.preventDefault();
+      const v = termIn.value.trim(); if(!v) return;
+      HISTORY.unshift(v); hi = -1; termIn.value='';
+      print(`$ ${v}`);
+      const [cmd, ...args] = v.split(' ');
+      const fn = CMDS[cmd];
+      const out = fn ? fn(...args) : `unknown command: ${cmd}. try "help"`;
+      if(out) print(out);
+      termOut.scrollTop = termOut.scrollHeight;
+    });
+    addEventListener('keydown', e=>{
+      if(e.key==='ArrowUp'){ e.preventDefault(); termIn.value = HISTORY[Math.min(++hi, HISTORY.length-1)] || termIn.value; }
+      if(e.key==='ArrowDown'){ e.preventDefault(); termIn.value = HISTORY[Math.max(--hi, -1)] || ''; }
+    });
+    function print(s){
+      const d = document.createElement('div');
+      d.textContent = s; d.className = 'text-cyber-100';
+      termOut.appendChild(d);
+    }
+
+    /* ====== USERS MOCK ====== */
+    const mockUsers = Array.from({length:16}, (_,i)=>({
+      name: ['Ada Lovelace','Linus Torvalds','Grace Hopper','Ken Thompson','Margaret Hamilton','Guido van Rossum','Radia Perlman','James Gosling','Tim Berners-Lee','Niklaus Wirth','Robert Martin','Bjarne Stroustrup','Brendan Eich','Edsger Dijkstra','Dennis Ritchie','Barbara Liskov'][i],
+      role: ['Admin','Engineer','Moderator','Viewer'][Math.floor(Math.random()*4)],
+      status: ['Active','Invited','Suspended'][Math.floor(Math.random()*3)],
+      last: `${Math.floor(Math.random()*24)}h ago`
+    }));
+    const userTable = document.getElementById('userTable');
+    function renderUsers(filter=''){
+      userTable.innerHTML = '';
+      mockUsers.filter(u => `${u.name} ${u.role} ${u.status}`.toLowerCase().includes(filter.toLowerCase()))
+      .forEach(u=>{
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td class="py-2">
+            <div class="flex items-center gap-3">
+              <img class="w-8 h-8 rounded-full" src="https://i.pravatar.cc/50?u=${encodeURIComponent(u.name)}"/>
+              <div>
+                <div class="font-medium">${u.name}</div>
+                <div class="text-xs text-gray-400">id-${Math.random().toString(36).slice(2,8)}</div>
+              </div>
+            </div>
+          </td>
+          <td class="py-2">${u.role}</td>
+          <td class="py-2">
+            <span class="px-2 py-0.5 rounded text-xs ${u.status==='Active'?'bg-emerald-500/20 text-emerald-300': u.status==='Invited'?'bg-amber-500/20 text-amber-300':'bg-rose-500/20 text-rose-300'}">${u.status}</span>
+          </td>
+          <td class="py-2">${u.last}</td>
+          <td class="py-2">
+            <button class="px-2 py-1 rounded bg-white/5 border border-white/10 hover:border-cyber-500 text-xs">View</button>
+          </td>`;
+        userTable.appendChild(tr);
+      });
+    }
+    renderUsers();
+    document.getElementById('userFilter').addEventListener('input', e=> renderUsers(e.target.value));
+
+    /* ====== COMMAND PALETTE ====== */
+    const cmdData = [
+      {label:'Go to Overview', section:'Navigation', action:()=> jump('overview')},
+      {label:'Go to Analytics', section:'Navigation', action:()=> jump('analytics')},
+      {label:'Go to Terminal', section:'Navigation', action:()=> jump('terminal')},
+      {label:'Go to Users', section:'Navigation', action:()=> jump('users')},
+      {label:'Go to Settings', section:'Navigation', action:()=> jump('settings')},
+      {label:'Toggle Theme', section:'Actions', action:()=> themeBtn.click()},
+      {label:'Enable Matrix', section:'Actions', action:()=> { if(!matrix){ toggleMatrix.checked=true; toggleMatrix.dispatchEvent(new Event('change')); }}},
+      {label:'Disable Matrix', section:'Actions', action:()=> { if(matrix){ toggleMatrix.checked=false; toggleMatrix.dispatchEvent(new Event('change')); }}},
+      {label:'Pulse Widgets', section:'Actions', action:()=> document.getElementById('pulseBtn').click()},
+    ];
+    const cmdk = document.getElementById('cmdk');
+    const cmdInput = document.getElementById('cmdInput');
+    const cmdList = document.getElementById('cmdList');
+
+    function openCmd(){
+      cmdk.classList.remove('hidden');
+      cmdInput.value = '';
+      buildCmd('');
+      cmdInput.focus();
+    }
+    function closeCmd(){ cmdk.classList.add('hidden'); }
+    function buildCmd(q){
+      cmdList.innerHTML = '';
+      const groups = {};
+      cmdData.filter(i => i.label.toLowerCase().includes(q.toLowerCase()))
+        .forEach(i => (groups[i.section] ||= []).push(i));
+      Object.entries(groups).forEach(([section, items])=>{
+        const h = document.createElement('div');
+        h.className = 'px-3 pt-3 text-xs text-gray-400'; h.textContent = section;
+        cmdList.appendChild(h);
+        items.forEach((i, idx)=>{
+          const btn = document.createElement('button');
+          btn.className = 'w-full text-left px-3 py-2 hover:bg-white/5';
+          btn.innerHTML = `<div>${i.label}</div>`;
+          btn.addEventListener('click', ()=>{ i.action(); closeCmd(); toast(`→ ${i.label}`,'info'); });
+          if(idx===0) btn.classList.add('active');
+          cmdList.appendChild(btn);
+        });
+      });
+    }
+    addEventListener('keydown', e=>{
+      if((e.ctrlKey || e.metaKey) && e.key.toLowerCase()==='k'){ e.preventDefault(); openCmd(); }
+      if(e.key==='Escape' && !cmdk.classList.contains('hidden')) closeCmd();
+    });
+    cmdInput.addEventListener('input', e=> buildCmd(e.target.value));
+
+    /* ====== NAV LINKS ====== */
+    function jump(id){
+      document.getElementById(id)?.scrollIntoView({behavior:'smooth', block:'start'});
+      document.querySelectorAll('.navlink').forEach(a=>{
+        a.classList.toggle('bg-white/10', a.dataset.jump===id);
+      });
+    }
+    document.querySelectorAll('[data-jump]').forEach(a => a.addEventListener('click', e=>{
+      e.preventDefault(); jump(a.dataset.jump);
+    }));
+
+    /* ====== SEARCH HOTKEY FOCUS ====== */
+    const globalSearch = document.getElementById('globalSearch');
+    addEventListener('keydown', e=>{
+      if((e.ctrlKey || e.metaKey) && e.key.toLowerCase()==='k'){ e.preventDefault(); openCmd(); }
+      if(e.key==='/'){ if(document.activeElement !== globalSearch){ e.preventDefault(); globalSearch.focus(); } }
+    });
+
+    /* ====== TOASTS ====== */
+    const toasts = document.getElementById('toasts');
+    function toast(msg, type='info'){
+      const el = document.createElement('div');
+      el.className = `glass neon-border rounded-xl px-3 py-2 text-sm flex items-center gap-2 border ${type==='success'?'border-emerald-400/40': type==='info'?'border-cyber-400/40':'border-rose-400/40'}`;
+      el.innerHTML = `<i class="ph ${ type==='success'?'ph-check-circle':'ph-info' }"></i> <span>${msg}</span>`;
+      toasts.appendChild(el);
+      gsap.fromTo(el, { y:20, opacity:0 }, { y:0, opacity:1, duration:.25, ease:'power2' });
+      setTimeout(()=> gsap.to(el, { opacity:0, y:10, duration:.25, onComplete(){ el.remove(); } }), 2600);
+    }
+
+    /* ====== NOTIFICATION BELL DEMO ====== */
+    document.getElementById('bellBtn').addEventListener('click', ()=>{
+      toast('3 new alerts in Security Center','info');
+      document.getElementById('bellDot').remove();
+    });
+
+    /* ====== LITTLE ENTRANCE MOTION ====== */
+    gsap.from('.widget', { y: 20, opacity:0, duration:.4, ease:'power2.out', stagger:.06, delay:.15 });
+    gsap.from('section', { y: 10, opacity:0, duration:.35, ease:'power2.out', stagger:.05 });
+
+  </script>
+</body>
+</html>
